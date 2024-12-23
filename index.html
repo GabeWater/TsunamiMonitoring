@@ -349,39 +349,45 @@ document.addEventListener("DOMContentLoaded", async () => {
 	});
 
 
-    function updateCountdowns() {
-        const rows = document.querySelectorAll("#countdownTableBody tr");
-        const now = simTime || new Date();
+        function updateCountdowns() {
+                const rows = document.querySelectorAll("#countdownTableBody tr");
+                const now = simTime || new Date();
 
-        rows.forEach(row => {
-            const countdownCell = row.querySelector(".countdown");
-            const countUpCell = row.querySelector(".countup");
-            const targetTime = new Date(countdownCell.getAttribute("data-time"));
+                rows.forEach(row => {
+                    const countdownCell = row.querySelector(".countdown");
+                    const countUpCell = row.querySelector(".countup");
+                    const targetTime = new Date(countdownCell.getAttribute("data-time"));
 
-            const diffMs = targetTime - now;
+                    const diffMs = targetTime - now;
 
-            if (diffMs > 0) {
-                const hours = Math.floor(diffMs / (1000 * 60 * 60));
-                const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-                countdownCell.textContent = `${hours.toString().padStart(2, "0")}:${minutes
-                    .toString()
-                    .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-            } else {
-                const diffHours = Math.abs(Math.floor(diffMs / (1000 * 60 * 60)));
-                const diffMinutes = Math.abs(Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
-                const diffSeconds = Math.abs(Math.floor((diffMs % (1000 * 60)) / 1000));
-                countUpCell.textContent = `${diffHours.toString().padStart(2, "0")}:${diffMinutes
-                    .toString()
-                    .padStart(2, "0")}:${diffSeconds.toString().padStart(2, "0")}`;
-                countdownCell.textContent = "00:00:00";
-            }
-        });
-
+                    if (diffMs > 0) {
+                        // Countdown logic
+                        const hours = Math.floor(diffMs / (1000 * 60 * 60));
+                        const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                        const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+                        countdownCell.textContent = `${hours.toString().padStart(2, "0")}:${minutes
+                            .toString()
+                            .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+                        countdownCell.classList.remove("yellow", "red", "blue");
+                        countdownCell.classList.add(
+                            diffMs <= 60000 ? "red" : diffMs <= 2 * 60 * 1000 ? "yellow" : "blue"
+                        );
+                        countUpCell.textContent = ""; // Clear count-up
+                    } else {
+                        // Count-up logic
+                        const diffHours = Math.abs(Math.floor(diffMs / (1000 * 60 * 60)));
+                        const diffMinutes = Math.abs(Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
+                        const diffSeconds = Math.abs(Math.floor((diffMs % (1000 * 60)) / 1000));
+                        countUpCell.textContent = `${diffHours.toString().padStart(2, "0")}:${diffMinutes
+                            .toString()
+                            .padStart(2, "0")}:${diffSeconds.toString().padStart(2, "0")}`;
+                        countdownCell.textContent = "00:00:00";
+                        countdownCell.classList.remove("red", "yellow", "blue");
+                    }
+                });
         updateMarkersAndShading();
         reorderTableRows();
     }
-
     async function main() {
         const data = await fetchData();
         if (!data || !data.observations || !Array.isArray(data.observations)) {

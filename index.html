@@ -141,21 +141,30 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    async function fetchData() {
-        try {
-            const cacheBuster = `nocache=${new Date().getTime()}`;
-            const urlWithCacheBuster = `${jsonUrl}?${cacheBuster}`;
-            const response = await fetch(urlWithCacheBuster);
-            if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-            const data = await response.json();
-            return data;
-        } catch (error) {
-            console.error("Error fetching JSON data:", error);
-            return null;
-        }
+async function fetchData() {
+    try {
+        const cacheBuster = `nocache=${new Date().getTime()}`;
+        const urlWithCacheBuster = `${jsonUrl}?${cacheBuster}`;
+        
+        // Use no-cors mode
+        const response = await fetch(urlWithCacheBuster, { method: 'GET', mode: 'no-cors' });
+        
+        // Log the opaque response (no access to body or JSON)
+        console.log('Opaque response:', response);
+        
+        // In no-cors mode, we cannot access the JSON data
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        
+        // Placeholder for data return
+        return null; // Replace with actual processing if you use a proxy or other workaround
+        
+    } catch (error) {
+        console.error("Error fetching JSON data:", error);
+        return null;
     }
+}
 
-    
+
             function initializeMap(center) {
                 map = L.map("map").setView(center, 6);
                 initialView = { center, zoom: 6 }; // Save initial view

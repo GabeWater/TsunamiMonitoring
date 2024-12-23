@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tsunami Wave Arrival Countdown with Map</title>
+    <link rel="stylesheet" href=".leaflet//leaflet.css" />
+    <script src=".leaflet/leaflet.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        #main-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+
+        #info-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        #slider-container {
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        #slider-value {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        #slider-range {
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .countdown.red {
+            background-color: red;
+            color: white;
+        }
+
+        .countdown.yellow {
+            background-color: yellow;
+            color: black;
+        }
+
+        .countdown.blue {
+            background-color: rgba(173, 216, 230, 0.1); /* transparent blue */
+            color: black;
+        }
+	    .countdown.green {
+			background-color: rgba(0, 128, 0, 0.2); /* Transparent dark green */
+			color: black;
+    }
+        .map-link {
+            color: blue;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div id="main-container">
+        <div id="map"></div>
+        <div id="info-panel">
+            <div id="slider-container">
+                <div id="slider-value">Simulated Time:</div>
+                <input type="range" id="simTimeSlider" step="1000">
+                <div id="slider-range"></div>
+            </div>
+			<a id="resetMapLink" href="#" class="map-link">Reset Map View</a>																 
+            <table>
+                <thead>
+                    <tr>
+                        <th>Location</th>
+                        <th>Arrival Time (Pacific)</th>
+                        <th>Time Before Arrival</th>
+                        <th>Time Since Arrival</th>
+                    </tr>
+                </thead>
+                <tbody id="countdownTableBody">
+                    <!-- Data will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+    const jsonUrl = "./data/PAAQ.json"
+	let map; // Map instance
+            const markers = [];
+            let initialView; // To store the initial map view								
+
+    // Configure Leaflet markers to use local images
+    L.Icon.Default.mergeOptions({
+        iconUrl: './images/marker-icon.png',
+        iconRetinaUrl: './images/marker-icon-2x.png',
+        shadowUrl: './images/marker-shadow.png',
+    });
+
+    // Function to get marker color and opacity
+    function getMarkerColor(diffMs) {
+        if (diffMs > 2 * 60 * 1000) {
+            return { color: "blue", opacity: 0.5 };
+        } else if (diffMs > 60 * 1000) {
+            return { color: "yellow", opacity: 1 };
+        } else if (diffMs > 0) {
+            return { color: "red", opacity: 1 };
+        } else {
+            return { color: "darkgreen", opacity: 0.6 }; // Transparent dark green for passed events
+        }
+    }
+
+    async function fetchData() {
+        try {
+            const cacheBuster = `nocache=${new Date().getTime()}`;
+            const urlWithCacheBuster = `${jsonUrl}?${cacheBuster}`;
+            const response = await fetch(urlWithCacheBuster);
+            if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error("Error fetching JSON data:", error);
+            return null;
+        }
+    }
+
+    
+            function initializeMap(center) {
+                map = L.map("map").setView(center, 6);
+                initialView = { center, zoom: 6 }; // Save initial view
+                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+                return map;
+            }
+	// Convert a UTC time string to Pacific Time
+	function convertToPacificTime(utcTime) {
+		const date = new Date(utcTime);
+		const options = {
+			timeZone: "America/Los_Angeles",
+			hour12: true,
+			hour: "numeric",
+			minute: "numeric",
+			second: "numeric",
+			weekday: "short",
+			year: "numeric",
+			month: "short",
+			day: "numeric",
+		};
+		return new Intl.DateTimeFormat("en-US", options).format(date);
+	}
+			
+    function addMarkersToMap(map, observations) {
+        observations.forEach(site => {
+			const lat = parseFloat(site.lat);
+			const lon = parseFloat(site.lon);
+			const arrivalTimePacific = convertToPacificTime(site.predictedArrivalTime);
+            if (!isNaN(lat) && !isNaN(lon)) {
+                const targetTime = new Date(site.predictedArrivalTime);
+                const diffMs = targetTime - simTime;
+                const { color, opacity } = getMarkerColor(diffMs);
+
+                const marker = L.circleMarker([lat, lon], {
+                    radius: 10,
+                    fillColor: color,
+                    color: color,
+                    weight: 1,
+                    opacity: opacity,
+                    fillOpacity: opacity
+                }).addTo(map);
+
+                marker.bindPopup( `<b>${site.locationName}</b><br>
+                            Arrival Time: ${arrivalTimePacific}<br>
+                            Predicted Amplitude: ${site.predictedPosAmplitude} ${site.predictedPosAmplitudeUnits}`);
+                markers.push({ marker, targetTime, countdownCell: null });
+            }
+        });
+    }
+
+
+		   
+    function updateMarkersAndShading() {
+        const now = simTime || new Date();
+
+        markers.forEach(({ marker, targetTime, countdownCell }) => {
+            const diffMs = targetTime - now;
+            const { color, opacity } = getMarkerColor(diffMs);
+
+            // Update marker styling dynamically
+            marker.setStyle({
+                fillColor: color,
+                color: color,
+                fillOpacity: opacity,
+                opacity: opacity
+            });
+
+            if (countdownCell) {
+                countdownCell.classList.remove("yellow", "red", "blue", "green");
+                if (diffMs > 2 * 60 * 1000) {
+                    countdownCell.classList.add("blue");
+                } else if (diffMs > 60 * 1000) {
+                    countdownCell.classList.add("yellow");
+                } else if (diffMs > 0) {
+                    countdownCell.classList.add("red");
+                } else {
+                    countdownCell.classList.add("green"); // Add green shading for passed events
+                }
+            }
+        });
+    }
+
+    function reorderTableRows() {
+        const tableBody = document.getElementById("countdownTableBody");
+        const rows = Array.from(tableBody.querySelectorAll("tr"));
+
+        rows.sort((a, b) => {
+            const aTime = new Date(a.querySelector(".countdown").getAttribute("data-time")) - simTime;
+            const bTime = new Date(b.querySelector(".countdown").getAttribute("data-time")) - simTime;
+
+            const aColor = a.querySelector(".countdown").classList.contains("green") ? 2 : 1;
+            const bColor = b.querySelector(".countdown").classList.contains("green") ? 2 : 1;
+
+            // Sort logic: green rows (2) after blue/yellow/red rows (1)
+            return aColor - bColor || aTime - bTime;
+        });
+
+        rows.forEach(row => tableBody.appendChild(row));
+    }
+
+    function initializeSlider(startTime, endTime) {
+        const slider = document.getElementById("simTimeSlider");
+        const sliderValue = document.getElementById("slider-value");
+        const sliderRange = document.getElementById("slider-range");
+
+        slider.min = startTime.getTime();
+        slider.max = endTime.getTime();
+        slider.value = startTime.getTime();
+
+        sliderRange.textContent = `Range: ${startTime.toLocaleString()} - ${endTime.toLocaleString()}`;
+        simTime = new Date(parseInt(slider.value));
+        sliderValue.textContent = `Simulated Time: ${simTime.toLocaleString()}`;
+
+        let sliderDragging = false;
+
+        slider.addEventListener("mousedown", () => (sliderDragging = true));
+        slider.addEventListener("mouseup", () => (sliderDragging = false));
+
+        slider.addEventListener("input", () => {
+            simTime = new Date(parseInt(slider.value));
+            sliderValue.textContent = `Simulated Time: ${simTime.toLocaleString()}`;
+            updateCountdowns();
+        });
+
+        setInterval(() => {
+            if (!sliderDragging) {
+                simTime = new Date(simTime.getTime() + 1000); // Increment by 1 second
+                slider.value = simTime.getTime();
+                sliderValue.textContent = `Simulated Time: ${simTime.toLocaleString()}`;
+                updateCountdowns();
+            }
+        }, 1000);
+    }
+
+    function initializeTable(observations) {
+        const tableBody = document.getElementById("countdownTableBody");
+        tableBody.innerHTML = "";
+
+        observations.forEach((event, index) => {
+            const { locationName, predictedArrivalTime , lat,lon} = event;
+			const arrivalTimePacific = convertToPacificTime(predictedArrivalTime);
+            const row = document.createElement("tr");
+
+            const locationCell = document.createElement("td");
+			const locationLink = document.createElement("a");
+                    locationLink.href = "#";
+                    locationLink.textContent = locationName;
+                    locationLink.className = "map-link";
+                    locationLink.addEventListener("click", () => {
+                        map.setView([parseFloat(lat), parseFloat(lon)], 10); // Recenter and zoom
+                    });
+                    locationCell.appendChild(locationLink);			 
+			const arrivalTimeCell = document.createElement("td");
+            arrivalTimeCell.textContent = arrivalTimePacific;
+            
+			const countdownCell = document.createElement("td");
+            countdownCell.className = "countdown";
+            countdownCell.setAttribute("data-time", predictedArrivalTime);
+
+            const countUpCell = document.createElement("td");
+            countUpCell.className = "countup";
+
+            row.appendChild(locationCell);
+			row.appendChild(arrivalTimeCell);
+            row.appendChild(countdownCell);
+            row.appendChild(countUpCell);
+            tableBody.appendChild(row);
+
+            if (markers[index]) {
+                markers[index].countdownCell = countdownCell;
+            }
+
+
+        });
+
+            
+        updateCountdowns();
+        setInterval(updateCountdowns, 1000);
+
+    }
+	
+
+
+	document.getElementById("resetMapLink").addEventListener("click", (e) => {
+		e.preventDefault();
+		map.setView(initialView.center, initialView.zoom); // Reset to the initial map view
+										   
+	 
+	});
+
+
+    function updateCountdowns() {
+        const rows = document.querySelectorAll("#countdownTableBody tr");
+        const now = simTime || new Date();
+
+        rows.forEach(row => {
+            const countdownCell = row.querySelector(".countdown");
+            const countUpCell = row.querySelector(".countup");
+            const targetTime = new Date(countdownCell.getAttribute("data-time"));
+
+            const diffMs = targetTime - now;
+
+            if (diffMs > 0) {
+                const hours = Math.floor(diffMs / (1000 * 60 * 60));
+                const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+                countdownCell.textContent = `${hours.toString().padStart(2, "0")}:${minutes
+                    .toString()
+                    .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+            } else {
+                const diffHours = Math.abs(Math.floor(diffMs / (1000 * 60 * 60)));
+                const diffMinutes = Math.abs(Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
+                const diffSeconds = Math.abs(Math.floor((diffMs % (1000 * 60)) / 1000));
+                countUpCell.textContent = `${diffHours.toString().padStart(2, "0")}:${diffMinutes
+                    .toString()
+                    .padStart(2, "0")}:${diffSeconds.toString().padStart(2, "0")}`;
+                countdownCell.textContent = "00:00:00";
+            }
+        });
+
+        updateMarkersAndShading();
+        reorderTableRows();
+    }
+
+    async function main() {
+        const data = await fetchData();
+        if (!data || !data.observations || !Array.isArray(data.observations)) {
+            console.error("Invalid or missing 'observations' data in JSON.");
+            return;
+        }
+
+        const firstObservation = data.observations[0];
+        const center = [parseFloat(firstObservation.lat), parseFloat(firstObservation.lon)];
+
+        const map = initializeMap(center);
+
+        const thisDocGenerated = new Date(data.thisDocGenerated);
+        const latestTime = new Date(
+            Math.max(...data.observations.map(obs => new Date(obs.predictedArrivalTime).getTime()))
+        );
+        const endTime = new Date(latestTime.getTime() + 2 * 60 * 60 * 1000);
+
+        initializeSlider(thisDocGenerated, endTime);
+        addMarkersToMap(map, data.observations);
+        initializeTable(data.observations);
+    }
+
+    main();
+});
+</script>
+
+
+</body>
+</html>

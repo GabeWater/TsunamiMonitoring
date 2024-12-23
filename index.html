@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Tsunami Wave Arrival Countdown with Map</title>
-    <link rel="stylesheet" href=".leaflet//leaflet.css" />
-    <script src=".leaflet/leaflet.js"></script>
+    <link rel="stylesheet" href="./leaflet/leaflet.css" />
+    <script src="./leaflet/leaflet.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -115,7 +115,8 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", async () => {
-    const jsonUrl = "./data/PAAQ.json"
+    const jsonUrl = "http://localhost:8000/PAAQ.json"; // Adjust to your server path
+    let simTime;
 	let map; // Map instance
             const markers = [];
             let initialView; // To store the initial map view								
